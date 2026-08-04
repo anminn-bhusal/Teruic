@@ -1,0 +1,9 @@
+Teruic OS Syscall Exception
+---------------------------
+
+NOTE! This restriction does not cover user-space applications that communicate 
+with the Teruic OS Kernel using standard system call interfaces or IPC capabilities.
+
+Compiling, linking, or executing user-space software (written in Rust, C, Java, Wasm, etc.) 
+on top of Teruic OS does not subject that user software to the terms of the GNU 
+General Public License.

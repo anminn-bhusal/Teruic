@@ -1,0 +1,14 @@
+Teruic OS Kernel is provided under the terms of:
+
+	SPDX-License-Identifier: GPL-3.0-only WITH Teruic-syscall-note
+
+Being under the terms of the GNU General Public License version 3 only,
+according to:
+
+	LICENSES/preferred/GPL-3.0
+
+With an explicit syscall exception for user-space applications, as stated at:
+
+	LICENSES/exceptions/Teruic-syscall-note
+
+All contributions to Teruic OS are subject to this COPYING file.
