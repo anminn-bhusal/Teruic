@@ -5,24 +5,27 @@
 #![no_main]
 
 
-// submoduless 
+//submoduless
 mod print;
+mod serial;
 mod vga;
 
 use core::panic::PanicInfo;
 
-/// This function is called on panic.
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     println!("{}", info);
+    serial_println!("[KERNEL PANIC] {}", info);
     loop {}
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start() -> ! {
     println!("--- Welcome to Teruic OS ---");
-    println!("VGA Driver initialized!");
-    println!("Testing formatting: Numbers: {}, Hex: {:#x}", 42, 0xDEADBEEFu32);
+    serial_println!("--- Teruic OS Serial Console Active ---");
+
+    println!("VGA Output: Ready");
+    serial_println!("Serial Log: Initialization successful.");
 
     loop {}
 }
