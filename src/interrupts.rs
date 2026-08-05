@@ -8,9 +8,7 @@
 
 // also now we added PIC 8259 for testing with interrupt
 
-
 use crate::shell::Shell;
-
 use crate::{print, println};
 use lazy_static::lazy_static;
 use pic8259::ChainedPics;
@@ -20,6 +18,7 @@ use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
 // Map hardware PIC interrupts to IDT ranges 32 to 47
 pub const PIC_1_OFFSET: u8 = 32;
 pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
+
 pub static SHELL: Mutex<Shell> = Mutex::new(Shell::new());
 
 pub static PICS: Mutex<ChainedPics> =
@@ -29,7 +28,7 @@ pub static PICS: Mutex<ChainedPics> =
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 pub enum InterruptIndex {
-    Timer = PIC_1_OFFSET,      // IRQ 0 -> Vector 32
+    Timer = PIC_1_OFFSET,        // IRQ 0 -> Vector 32
     Keyboard = PIC_1_OFFSET + 1, // IRQ 1 -> Vector 33
 }
 
@@ -61,16 +60,17 @@ lazy_static! {
     };
 }
 
+/// Loads the Interrupt Descriptor Table (IDT) into the CPU register
 pub fn init_idt() {
     IDT.load();
 }
 
-// Handler for CPU Breakpoint
+// Handler for CPU Breakpoint (INT3)
 extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
     println!("\n[EXCEPTION: BREAKPOINT]\n{:#?}", stack_frame);
 }
 
-// Handler for Double Fault
+// Handler for Double Fault (prevents triple faults/reboots)
 extern "x86-interrupt" fn double_fault_handler(
     stack_frame: InterruptStackFrame,
     _error_code: u64,
@@ -80,9 +80,9 @@ extern "x86-interrupt" fn double_fault_handler(
 
 // Handler for Hardware Timer Ticks (IRQ 0)
 extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFrame) {
-    print!("."); // Print a dot on every clock tick
+    // Timer tick runs silently in the background without polluting screen output
 
-    // Signal to the PIC that the interrupt has been processed (End of Interrupt)
+    // Signal End of Interrupt (EOI) to the PIC chip
     unsafe {
         PICS.lock()
             .notify_end_of_interrupt(InterruptIndex::Timer.as_u8());
@@ -112,7 +112,7 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStac
         if let Some(key) = keyboard.process_keyevent(key_event) {
             match key {
                 DecodedKey::Unicode(character) => {
-                    // Send typed character to Shell
+                    // Route key character directly to the Kernel Shell
                     SHELL.lock().handle_key(character);
                 }
                 DecodedKey::RawKey(_) => {}
@@ -120,7 +120,7 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStac
         }
     }
 
-    // Signal End of Interrupt to the PIC
+    // Signal End of Interrupt (EOI) to the PIC chip
     unsafe {
         PICS.lock()
             .notify_end_of_interrupt(InterruptIndex::Keyboard.as_u8());
