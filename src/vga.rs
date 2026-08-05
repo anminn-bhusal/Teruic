@@ -7,8 +7,7 @@
 // every character cells takes up 2 bytes of memory just for info. hahaa
 
 
-
-// The Starts from heree:::::
+// It starts from here :
 use core::fmt;
 use lazy_static::lazy_static;
 use spin::Mutex;
@@ -47,20 +46,6 @@ impl ColorCode {
     }
 }
 
-pub fn clear_screen() {
-    WRITER.lock().clear_screen();
-}
-
-// Inside impl Writer:
-impl Writer {
-    pub fn clear_screen(&mut self) {
-        for row in 0..BUFFER_HEIGHT {
-            self.clear_row(row);
-        }
-        self.column_position = 0;
-    }
-}
-
 /// Represents a single character cell on the screen (ASCII char + Color attribute).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
@@ -91,6 +76,21 @@ impl Writer {
     pub fn write_byte(&mut self, byte: u8) {
         match byte {
             b'\n' => self.new_line(),
+            // Handle Backspace ASCII character (0x08)
+            0x08 => {
+                if self.column_position > 0 {
+                    self.column_position -= 1;
+                    let row = BUFFER_HEIGHT - 1;
+                    let col = self.column_position;
+                    let blank = ScreenChar {
+                        ascii_character: b' ',
+                        color_code: self.color_code,
+                    };
+                    unsafe {
+                        core::ptr::write_volatile(&mut self.buffer.chars[row][col], blank);
+                    }
+                }
+            }
             byte => {
                 if self.column_position >= BUFFER_WIDTH {
                     self.new_line();
@@ -98,17 +98,13 @@ impl Writer {
 
                 let row = BUFFER_HEIGHT - 1;
                 let col = self.column_position;
+                let character = ScreenChar {
+                    ascii_character: byte,
+                    color_code: self.color_code,
+                };
 
-                let color_code = self.color_code;
-                // Direct volatile write to hardware memory at 0xB8000
                 unsafe {
-                    core::ptr::write_volatile(
-                        &mut self.buffer.chars[row][col],
-                        ScreenChar {
-                            ascii_character: byte,
-                            color_code,
-                        },
-                    );
+                    core::ptr::write_volatile(&mut self.buffer.chars[row][col], character);
                 }
                 self.column_position += 1;
             }
@@ -119,8 +115,8 @@ impl Writer {
     pub fn write_string(&mut self, s: &str) {
         for byte in s.bytes() {
             match byte {
-                // Printable ASCII byte range or newline
-                0x20..=0x7e | b'\n' => self.write_byte(byte),
+                // Printable ASCII byte range, newline, or backspace
+                0x20..=0x7e | b'\n' | 0x08 => self.write_byte(byte),
                 // Non-printable ASCII bytes mapped to block character
                 _ => self.write_byte(0xfe),
             }
@@ -153,6 +149,19 @@ impl Writer {
             }
         }
     }
+
+    /// Clears the entire VGA display.
+    pub fn clear_screen(&mut self) {
+        for row in 0..BUFFER_HEIGHT {
+            self.clear_row(row);
+        }
+        self.column_position = 0;
+    }
+}
+
+/// Global public helper function to clear the screen
+pub fn clear_screen() {
+    WRITER.lock().clear_screen();
 }
 
 /// Implementation of Rust's standard formatting trait (`core::fmt::Write`).
