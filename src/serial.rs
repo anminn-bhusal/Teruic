@@ -8,14 +8,18 @@
 // 3. Copying Logs for Debugging
 // 4. Automated Testing (CI/CD)
 
+
+
 use lazy_static::lazy_static;
 use spin::Mutex;
 use uart_16550::SerialPort;
 
+/// Standard I/O port address for COM1
+const COM1_PORT: u16 = 0x3F8;
+
 lazy_static! {
     pub static ref SERIAL1: Mutex<SerialPort> = {
-        // 0x3F8 is the standard I/O port address for COM1
-        let mut serial_port = unsafe { SerialPort::new(0x3F8) };
+        let mut serial_port = unsafe { SerialPort::new(COM1_PORT) };
         serial_port.init();
         Mutex::new(serial_port)
     };
@@ -24,13 +28,18 @@ lazy_static! {
 #[doc(hidden)]
 pub fn _print(args: ::core::fmt::Arguments) {
     use core::fmt::Write;
-    SERIAL1
-        .lock()
-        .write_fmt(args)
-        .expect("Printing to serial failed");
+
+    // Disabling interrupts while holding the lock prevents deadlocks if an 
+    // interrupt handler also attempts to write to SERIAL1.
+    x86_64::instructions::interrupts::without_interrupts(|| {
+        SERIAL1
+            .lock()
+            .write_fmt(args)
+            .expect("Printing to serial port COM1 failed");
+    });
 }
 
-/// Prints to the host via the serial interface.
+/// Prints to the host via serial interface COM1.
 #[macro_export]
 macro_rules! serial_print {
     ($($arg:tt)*) => {
@@ -38,7 +47,7 @@ macro_rules! serial_print {
     };
 }
 
-/// Prints to the host via the serial interface, appending a newline.
+/// Prints to the host via serial interface COM1, appending a newline.
 #[macro_export]
 macro_rules! serial_println {
     () => ($crate::serial_print!("\n"));
