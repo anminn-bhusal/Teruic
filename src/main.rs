@@ -3,9 +3,11 @@
 // telling compiler to not go to runtime before main as well as no std libraries
 #![no_std]
 #![no_main]
+#![feature(abi_x86_interrupt)] // <-- Needed for interrupt handlers
 
 
 //submoduless
+mod interrupts;
 mod print;
 mod serial;
 mod vga;
@@ -24,8 +26,14 @@ pub extern "C" fn _start() -> ! {
     println!("--- Welcome to Teruic OS ---");
     serial_println!("--- Teruic OS Serial Console Active ---");
 
-    println!("VGA Output: Ready");
-    serial_println!("Serial Log: Initialization successful.");
+    // Initialize Interrupt Descriptor Table
+    interrupts::init_idt();
+    println!("IDT Initialized successfully!");
+
+    // Trigger a test breakpoint exception
+    x86_64::instructions::interrupts::int3();
+
+    println!("Execution continued successfully after breakpoint exception!");
 
     loop {}
 }
