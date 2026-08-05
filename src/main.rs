@@ -44,7 +44,7 @@ pub extern "C" fn _start() -> ! {
     // 3. Enable hardware interrupts in CPU EFLAGS register (sti instruction)
     x86_64::instructions::interrupts::enable();
 
-    println!("Kernel initialization complete.\n");
+    println!("Kernel Loaded successfully.\n");
     print!("teruic> ");
 
     // 4. Main Kernel Loop
