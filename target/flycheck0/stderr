@@ -1,0 +1,4 @@
+    Checking x86_64 v0.14.13
+error: could not compile `x86_64` (lib) due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `x86_64` (lib) due to 2 previous errors
