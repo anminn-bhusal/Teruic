@@ -3,10 +3,8 @@
 // telling compiler to not go to runtime before main as well as no std libraries
 #![no_std]
 #![no_main]
-#![feature(abi_x86_interrupt)] // <-- Needed for interrupt handlers
+#![feature(abi_x86_interrupt)] // Needed for interrupt handlers
 
-
-//submoduless
 mod interrupts;
 mod print;
 mod serial;
@@ -26,14 +24,17 @@ pub extern "C" fn _start() -> ! {
     println!("--- Welcome to Teruic OS ---");
     serial_println!("--- Teruic OS Serial Console Active ---");
 
-    // Initialize Interrupt Descriptor Table
+    // 1. Initialize Interrupt Descriptor Table
     interrupts::init_idt();
-    println!("IDT Initialized successfully!");
+    println!("IDT Initialized!");
 
-    // Trigger a test breakpoint exception
-    x86_64::instructions::interrupts::int3();
+    // 2. Initialize 8259 PIC hardware driver
+    unsafe { interrupts::PICS.lock().initialize() };
+    println!("8259 PIC Initialized!");
 
-    println!("Execution continued successfully after breakpoint exception!");
+    // 3. Enable CPU Hardware Interrupts
+    x86_64::instructions::interrupts::enable();
+    println!("Hardware Interrupts Enabled! Try typing on your keyboard:\n");
 
     loop {}
 }
