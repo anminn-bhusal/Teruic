@@ -9,6 +9,8 @@
 // also now we added PIC 8259 for testing with interrupt
 
 
+use crate::shell::Shell;
+
 use crate::{print, println};
 use lazy_static::lazy_static;
 use pic8259::ChainedPics;
@@ -18,6 +20,7 @@ use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
 // Map hardware PIC interrupts to IDT ranges 32 to 47
 pub const PIC_1_OFFSET: u8 = 32;
 pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
+pub static SHELL: Mutex<Shell> = Mutex::new(Shell::new());
 
 pub static PICS: Mutex<ChainedPics> =
     Mutex::new(unsafe { ChainedPics::new(PIC_1_OFFSET, PIC_2_OFFSET) });
@@ -108,8 +111,11 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStac
     if let Ok(Some(key_event)) = keyboard.add_byte(scancode) {
         if let Some(key) = keyboard.process_keyevent(key_event) {
             match key {
-                DecodedKey::Unicode(character) => print!("{}", character),
-                DecodedKey::RawKey(key) => print!("{:?}", key),
+                DecodedKey::Unicode(character) => {
+                    // Send typed character to Shell
+                    SHELL.lock().handle_key(character);
+                }
+                DecodedKey::RawKey(_) => {}
             }
         }
     }
