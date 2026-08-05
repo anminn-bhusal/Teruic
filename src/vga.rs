@@ -47,6 +47,20 @@ impl ColorCode {
     }
 }
 
+pub fn clear_screen() {
+    WRITER.lock().clear_screen();
+}
+
+// Inside impl Writer:
+impl Writer {
+    pub fn clear_screen(&mut self) {
+        for row in 0..BUFFER_HEIGHT {
+            self.clear_row(row);
+        }
+        self.column_position = 0;
+    }
+}
+
 /// Represents a single character cell on the screen (ASCII char + Color attribute).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]

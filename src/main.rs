@@ -7,6 +7,7 @@
 
 mod interrupts;
 mod print;
+mod shell;
 mod serial;
 mod vga;
 
@@ -23,19 +24,16 @@ fn panic(info: &PanicInfo) -> ! {
 #[unsafe(no_mangle)]
 pub extern "C" fn _start() -> ! {
     println!("--- Welcome to Teruic OS ---");
-    serial_println!("--- Teruic OS Serial Console Active ---");
-
-    // 1. Initialize Interrupt Descriptor Table
+    
     interrupts::init_idt();
-    println!("IDT Initialized!");
-
-    // 2. Initialize 8259 PIC hardware driver
     unsafe { interrupts::PICS.lock().initialize() };
-    println!("8259 PIC Initialized!");
-
-    // 3. Enable CPU Hardware Interrupts
     x86_64::instructions::interrupts::enable();
-    println!("Hardware Interrupts Enabled! Try typing on your keyboard:\n");
 
-    loop {}
+    println!("Kernel initialization complete.\n");
+    print!("teruic> ");
+
+    loop {
+        // Prevent CPU from running 100% hot while idle
+        x86_64::instructions::hlt();
+    }
 }
