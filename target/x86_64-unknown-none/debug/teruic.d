@@ -1,1 +1,0 @@
-C:\Users\Anmin_11\Desktop\project\teruic\Teruic\target\x86_64-unknown-none\debug\teruic: C:\Users\Anmin_11\Desktop\project\teruic\Teruic\src\main.rs C:\Users\Anmin_11\Desktop\project\teruic\Teruic\src\print.rs C:\Users\Anmin_11\Desktop\project\teruic\Teruic\src\serial.rs C:\Users\Anmin_11\Desktop\project\teruic\Teruic\src\vga.rs
