@@ -1,4 +1,5 @@
     Checking x86_64 v0.14.13
-error: could not compile `x86_64` (lib) due to 2 previous errors
+    Checking teruic v0.1.0 (C:\Users\Anmin_11\Desktop\project\teruic\Teruic)
+error: could not compile `teruic` (bin "teruic") due to 4 previous errors
 warning: build failed, waiting for other jobs to finish...
-error: could not compile `x86_64` (lib) due to 2 previous errors
+error: could not compile `teruic` (bin "teruic" test) due to 5 previous errors
