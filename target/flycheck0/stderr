@@ -1,2 +1,3 @@
     Checking teruic v0.1.0 (C:\Users\Anmin_11\Desktop\project\teruic\Teruic)
 error: could not compile `teruic` (bin "teruic" test) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
