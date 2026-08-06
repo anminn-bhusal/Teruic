@@ -9,6 +9,7 @@
 
 extern crate alloc;
 
+mod vfs;
 mod allocator;
 mod interrupts;
 mod memory;
