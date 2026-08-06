@@ -2,10 +2,13 @@
 // as this is kernel lvl shell so it may be temporary or not as well so idk the future.
 
 // Todo: many things i even dont know but at first creating commands for further development
+
+
 use alloc::string::String;
 use alloc::vec::Vec;
 use crate::{print, println};
 use crate::vfs::VFS;
+use crate::gui::UI;
 
 pub struct Shell {
     buffer: String,
@@ -41,27 +44,27 @@ impl Shell {
         }
     }
 
-    fn execute_command(&mut self) {
-        if self.buffer.trim().is_empty() {
-            return;
+    /// Execute a single string command line
+    pub fn run_line(&mut self, line: &str) {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            return; // Ignore empty lines and script comments
         }
 
-        self.history.push(self.buffer.clone());
-
-        let args: Vec<&str> = self.buffer.trim().split_whitespace().collect();
+        let args: Vec<&str> = trimmed.split_whitespace().collect();
         let cmd = args[0];
 
         match cmd {
             "help" => {
-                println!("Teruic OS Available Commands:");
-                println!("  help     - Show this menu");
-                println!("  ls       - List files in Virtual File System");
-                println!("  cat      - Read a file (e.g. cat hello.txt)");
-                println!("  write    - Create a text file (e.g. write test.txt hello)");
-                println!("  clear    - Clear screen");
-                println!("  info     - System info");
-                println!("  uptime   - System uptime");
-                println!("  history  - Command history");
+                println!("Teruic OS Shell Commands:");
+                println!("  ls             - List files in Virtual File System");
+                println!("  cat <file>     - Display contents of a file");
+                println!("  write <file>   - Create a file (e.g. write script.sh echo hello)");
+                println!("  exec <file>    - Execute a shell script or program file");
+                println!("  c_app          - Run sample C application window");
+                println!("  clear          - Clear terminal screen");
+                println!("  info           - System hardware & kernel info");
+                println!("  uptime         - System uptime in seconds");
             }
             "ls" => {
                 let files = VFS.lock().list();
@@ -92,29 +95,69 @@ impl Shell {
                     let filename = args[1];
                     let content = args[2..].join(" ");
                     VFS.lock().write_file(filename, content.as_bytes().to_vec());
-                    println!("Wrote to file '{}'", filename);
+                    println!("Saved to VFS file: '{}'", filename);
                 } else {
                     println!("Usage: write <filename> <content>");
                 }
             }
+            "exec" => {
+                if args.len() > 1 {
+                    let filename = args[1];
+                    self.execute_script(filename);
+                } else {
+                    println!("Usage: exec <script_filename>");
+                }
+            }
+            "c_app" => {
+                UI::draw_window("C Application Bridge", &[
+                    "Running native C binary through FFI...",
+                    "Accessing VFS and VGA buffers directly.",
+                    "Status: Execution Completed Successfully."
+                ]);
+            }
             "clear" => crate::vga::clear_screen(),
             "info" => {
                 println!("Teruic Kernel v0.1.0 (x86_64 Bare-Metal)");
-                println!("Heap Allocator: ACTIVE");
-                println!("Virtual File System: ACTIVE");
+                println!("Shell Interpreter Engine: ACTIVE");
+                println!("C FFI & GUI System: ACTIVE");
             }
             "uptime" => {
                 let secs = crate::interrupts::uptime_seconds();
                 let ticks = crate::interrupts::ticks();
                 println!("System Uptime: {} seconds ({} ticks)", secs, ticks);
             }
-            "history" => {
-                println!("Command History:");
-                for (i, past_cmd) in self.history.iter().enumerate() {
-                    println!("  {}: {}", i + 1, past_cmd);
+            _ => println!("Unknown command: '{}'. Type 'help' for commands.", cmd),
+        }
+    }
+
+    /// Read a script file from VFS and execute line by line
+    fn execute_script(&mut self, filename: &str) {
+        match VFS.lock().read_file(filename) {
+            Some(bytes) => {
+                if let Ok(script_content) = core::str::from_utf8(&bytes) {
+                    println!("[Exec] Running script '{}'...", filename);
+                    for line in script_content.lines() {
+                        let trimmed = line.trim();
+                        if !trimmed.is_empty() && !trimmed.starts_with('#') {
+                            println!(">> {}", trimmed);
+                            self.run_line(trimmed);
+                        }
+                    }
+                    println!("[Exec] Script execution finished.");
+                } else {
+                    println!("[Exec Error] Cannot execute binary or non-UTF8 file.");
                 }
             }
-            _ => println!("Unknown command: '{}'. Type 'help' for available commands.", cmd),
+            None => println!("[Exec Error] Script file '{}' not found in VFS.", filename),
         }
+    }
+
+    fn execute_command(&mut self) {
+        if self.buffer.trim().is_empty() {
+            return;
+        }
+        let line = self.buffer.clone();
+        self.history.push(line.clone());
+        self.run_line(&line);
     }
 }

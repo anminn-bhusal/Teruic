@@ -1,6 +1,5 @@
-// vistual file system
+// visual file system
 
-use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
@@ -29,20 +28,24 @@ impl VFSManager {
 
     /// Pre-loads essential directories and welcome files into the VFS
     pub fn init(&mut self) {
-        // Create standard system directories
-        let mut bin = BTreeMap::new();
-        let mut apps = BTreeMap::new();
+    let bin = BTreeMap::new();
+    let apps = BTreeMap::new();
 
-        // Sample hello text file
-        self.root.insert(
-            "hello.txt".to_string(),
-            Node::File(b"Welcome to Teruic OS File System!".to_vec()),
-        );
+    self.root.insert(
+        "hello.txt".to_string(),
+        Node::File(b"Welcome to Teruic OS File System!".to_vec()),
+    );
 
-        // Pre-create /bin and /apps directories for executable binaries & Java classes
-        self.root.insert("bin".to_string(), Node::Directory(bin));
-        self.root.insert("apps".to_string(), Node::Directory(apps));
-    }
+    // Create a sample shell script in the VFS
+    let sample_script = b"# Teruic OS Automation Script\ninfo\nuptime\nwrite boot.log System automated boot test\ncat boot.log\n";
+    self.root.insert(
+        "demo.sh".to_string(),
+        Node::File(sample_script.to_vec()),
+    );
+
+    self.root.insert("bin".to_string(), Node::Directory(bin));
+    self.root.insert("apps".to_string(), Node::Directory(apps));
+}
 
     /// List all root files and directories
     pub fn list(&self) -> Vec<String> {

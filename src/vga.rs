@@ -6,13 +6,11 @@
 
 // every character cells takes up 2 bytes of memory just for info. hahaa
 
-
-// It starts from here :
 use core::fmt;
 use lazy_static::lazy_static;
 use spin::Mutex;
+use volatile::Volatile;
 
-/// Standard 16-color palette supported by VGA text hardware.
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
@@ -35,7 +33,6 @@ pub enum Color {
     White = 15,
 }
 
-/// Combines a foreground and background color into a single byte attribute.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
 struct ColorCode(u8);
@@ -46,7 +43,6 @@ impl ColorCode {
     }
 }
 
-/// Represents a single character cell on the screen (ASCII char + Color attribute).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 struct ScreenChar {
@@ -54,17 +50,14 @@ struct ScreenChar {
     color_code: ColorCode,
 }
 
-/// VGA Text Buffer dimensions.
 const BUFFER_HEIGHT: usize = 25;
 const BUFFER_WIDTH: usize = 80;
 
-/// Represents the physical memory structure at memory address 0xB8000.
 #[repr(transparent)]
 struct Buffer {
-    chars: [[ScreenChar; BUFFER_WIDTH]; BUFFER_HEIGHT],
+    chars: [[Volatile<ScreenChar>; BUFFER_WIDTH]; BUFFER_HEIGHT],
 }
 
-/// The main Writer struct managing cursor positions and writing to memory.
 pub struct Writer {
     column_position: usize,
     color_code: ColorCode,
@@ -72,23 +65,17 @@ pub struct Writer {
 }
 
 impl Writer {
-    /// Writes a single byte (ASCII character) to the screen.
     pub fn write_byte(&mut self, byte: u8) {
         match byte {
             b'\n' => self.new_line(),
-            // Handle Backspace ASCII character (0x08)
-            0x08 => {
+            b'\x08' => {
                 if self.column_position > 0 {
                     self.column_position -= 1;
-                    let row = BUFFER_HEIGHT - 1;
-                    let col = self.column_position;
                     let blank = ScreenChar {
                         ascii_character: b' ',
                         color_code: self.color_code,
                     };
-                    unsafe {
-                        core::ptr::write_volatile(&mut self.buffer.chars[row][col], blank);
-                    }
+                    self.buffer.chars[BUFFER_HEIGHT - 1][self.column_position].write(blank);
                 }
             }
             byte => {
@@ -98,73 +85,70 @@ impl Writer {
 
                 let row = BUFFER_HEIGHT - 1;
                 let col = self.column_position;
-                let character = ScreenChar {
-                    ascii_character: byte,
-                    color_code: self.color_code,
-                };
 
-                unsafe {
-                    core::ptr::write_volatile(&mut self.buffer.chars[row][col], character);
-                }
+                let color_code = self.color_code;
+                self.buffer.chars[row][col].write(ScreenChar {
+                    ascii_character: byte,
+                    color_code,
+                });
                 self.column_position += 1;
             }
         }
     }
 
-    /// Writes a full string to the screen. Unsupported characters default to `■` (0xfe).
     pub fn write_string(&mut self, s: &str) {
         for byte in s.bytes() {
             match byte {
-                // Printable ASCII byte range, newline, or backspace
-                0x20..=0x7e | b'\n' | 0x08 => self.write_byte(byte),
-                // Non-printable ASCII bytes mapped to block character
+                0x20..=0x7e | b'\n' | b'\x08' => self.write_byte(byte),
                 _ => self.write_byte(0xfe),
             }
         }
     }
 
-    /// Scrolls all lines up by 1 and clears the bottom row.
-    fn new_line(&mut self) {
-        for row in 1..BUFFER_HEIGHT {
-            for col in 0..BUFFER_WIDTH {
-                unsafe {
-                    let character = core::ptr::read_volatile(&self.buffer.chars[row][col]);
-                    core::ptr::write_volatile(&mut self.buffer.chars[row - 1][col], character);
-                }
-            }
-        }
-        self.clear_row(BUFFER_HEIGHT - 1);
-        self.column_position = 0;
+    pub fn set_colors(&mut self, foreground: Color, background: Color) {
+        self.color_code = ColorCode::new(foreground, background);
     }
 
-    /// Clears a row by filling it with blank spaces.
-    fn clear_row(&mut self, row: usize) {
+    pub fn clear_row(&mut self, row: usize) {
         let blank = ScreenChar {
             ascii_character: b' ',
             color_code: self.color_code,
         };
         for col in 0..BUFFER_WIDTH {
-            unsafe {
-                core::ptr::write_volatile(&mut self.buffer.chars[row][col], blank);
-            }
+            self.buffer.chars[row][col].write(blank);
         }
     }
 
-    /// Clears the entire VGA display.
-    pub fn clear_screen(&mut self) {
-        for row in 0..BUFFER_HEIGHT {
-            self.clear_row(row);
+    pub fn write_string_at(&mut self, row: usize, col: usize, s: &str) {
+        let mut current_col = col;
+        for byte in s.bytes() {
+            if current_col >= BUFFER_WIDTH {
+                break;
+            }
+            let char_to_write = match byte {
+                0x20..=0x7e => byte,
+                _ => 0xfe,
+            };
+            self.buffer.chars[row][current_col].write(ScreenChar {
+                ascii_character: char_to_write,
+                color_code: self.color_code,
+            });
+            current_col += 1;
         }
+    }
+
+    fn new_line(&mut self) {
+        for row in 1..BUFFER_HEIGHT {
+            for col in 0..BUFFER_WIDTH {
+                let character = self.buffer.chars[row][col].read();
+                self.buffer.chars[row - 1][col].write(character);
+            }
+        }
+        self.clear_row(BUFFER_HEIGHT - 1);
         self.column_position = 0;
     }
 }
 
-/// Global public helper function to clear the screen
-pub fn clear_screen() {
-    WRITER.lock().clear_screen();
-}
-
-/// Implementation of Rust's standard formatting trait (`core::fmt::Write`).
 impl fmt::Write for Writer {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         self.write_string(s);
@@ -172,11 +156,18 @@ impl fmt::Write for Writer {
     }
 }
 
-// Global thread-safe static writer pointing directly to 0xB8000
 lazy_static! {
     pub static ref WRITER: Mutex<Writer> = Mutex::new(Writer {
         column_position: 0,
-        color_code: ColorCode::new(Color::Yellow, Color::Black),
+        color_code: ColorCode::new(Color::LightGreen, Color::Black),
         buffer: unsafe { &mut *(0xb8000 as *mut Buffer) },
     });
+}
+
+pub fn clear_screen() {
+    let mut writer = WRITER.lock();
+    for row in 0..BUFFER_HEIGHT {
+        writer.clear_row(row);
+    }
+    writer.column_position = 0;
 }

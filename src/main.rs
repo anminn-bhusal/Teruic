@@ -2,21 +2,22 @@
 //Because we are writing a bare-metal kernel, we disable the Rust standard library
 //and bypass the standard C runtime initialization (`crt0`).
 
-
 #![no_std]
 #![no_main]
 #![feature(abi_x86_interrupt)]
 
 extern crate alloc;
 
-mod vfs;
 mod allocator;
+mod c_abi;
+mod gui;
 mod interrupts;
 mod memory;
 mod print;
 mod serial;
 mod shell;
 mod task;
+mod vfs;
 mod vga;
 
 use bootloader::{entry_point, BootInfo};
@@ -35,19 +36,15 @@ fn panic(info: &PanicInfo) -> ! {
     }
 }
 
-async fn example_task() {
-    println!("-> Async Task 1 executed in background!");
+async fn async_background_task() {
+    serial_println!("Async Background Task Running");
 }
 
 fn kernel_main(boot_info: &'static BootInfo) -> ! {
-    println!("--- Welcome to Teruic OS ---");
+    // 1. Clear VGA Buffer First
+    vga::clear_screen();
 
-    // 1. Interrupts & Hardware Setup
-    interrupts::init_idt();
-    unsafe { interrupts::PICS.lock().initialize() };
-    x86_64::instructions::interrupts::enable();
-
-    // 2. Memory & Heap Setup
+    // 2. Setup Memory & Heap First (Required for print/formatting)
     let phys_mem_offset = VirtAddr::new(boot_info.physical_memory_offset);
     let mut mapper = unsafe { memory::init(phys_mem_offset) };
     let mut frame_allocator =
@@ -56,19 +53,26 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     allocator::init_heap(&mut mapper, &mut frame_allocator)
         .expect("Heap initialization failed!");
 
-    println!("Kernel Heap Allocator initialized successfully.");
+    // 3. Initialize VFS
+    vfs::VFS.lock().init();
 
-    // Initialize In-Memory File System
-        vfs::VFS.lock().init();
-    println!("Virtual File System (VFS) initialized.");
+    // 4. Render GUI Status Bar at Top Row
+    gui::UI::draw_header("Bare-Metal Core Active");
 
-    // 3. Multitasking Executor Setup
-    let mut executor = Executor::new();
-    executor.spawn(Task::new(example_task()));
-
-    println!("\nKernel initialization complete.\n");
+    // 5. Print Welcome Banner to Screen
+    println!("\n--- Teruic OS v0.1.0 ---");
+    println!("Kernel Heap: ACTIVE");
+    println!("Virtual File System: ACTIVE");
+    println!("Type 'help' for available commands.\n");
     print!("teruic> ");
 
-    // 4. Hand off execution control to the Async Executor Loop
+    // 6. Setup Interrupts & PICs safely
+    interrupts::init_idt();
+    unsafe { interrupts::PICS.lock().initialize() };
+    x86_64::instructions::interrupts::enable();
+
+    // 7. Start Async Executor Loop
+    let mut executor = Executor::new();
+    executor.spawn(Task::new(async_background_task()));
     executor.run();
 }
