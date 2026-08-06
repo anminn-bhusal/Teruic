@@ -7,6 +7,7 @@
 
 
 // also now we added PIC 8259 for testing with interrupt
+extern crate alloc;
 use crate::println;
 use lazy_static::lazy_static;
 use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1};
