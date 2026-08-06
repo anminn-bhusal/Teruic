@@ -20,7 +20,8 @@ mod serial;
 mod shell;
 mod vga;
 
-use alloc::{boxed::Box, vec, vec::Vec};
+// use alloc::{boxed::Box, vec, vec::Vec};
+use alloc::{boxed::Box, vec};
 use bootloader::{entry_point, BootInfo};
 use core::panic::PanicInfo;
 use x86_64::VirtAddr;

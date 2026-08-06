@@ -7,122 +7,100 @@
 
 
 // also now we added PIC 8259 for testing with interrupt
-
-use crate::shell::Shell;
-use crate::{print, println};
+use crate::println;
 use lazy_static::lazy_static;
+use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1};
 use pic8259::ChainedPics;
 use spin::Mutex;
+use x86_64::instructions::port::Port;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
 
-// Map hardware PIC interrupts to IDT ranges 32 to 47
 pub const PIC_1_OFFSET: u8 = 32;
 pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
-
-pub static SHELL: Mutex<Shell> = Mutex::new(Shell::new());
 
 pub static PICS: Mutex<ChainedPics> =
     Mutex::new(unsafe { ChainedPics::new(PIC_1_OFFSET, PIC_2_OFFSET) });
 
-// Enum for hardware interrupt vector indices
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 pub enum InterruptIndex {
-    Timer = PIC_1_OFFSET,        // IRQ 0 -> Vector 32
-    Keyboard = PIC_1_OFFSET + 1, // IRQ 1 -> Vector 33
+    Timer = PIC_1_OFFSET,
+    Keyboard,
 }
 
 impl InterruptIndex {
     fn as_u8(self) -> u8 {
         self as u8
     }
-
-    fn as_usize(self) -> usize {
-        usize::from(self.as_u8())
-    }
 }
 
 lazy_static! {
     static ref IDT: InterruptDescriptorTable = {
         let mut idt = InterruptDescriptorTable::new();
-        
-        // CPU Exceptions
         idt.breakpoint.set_handler_fn(breakpoint_handler);
         idt.double_fault.set_handler_fn(double_fault_handler);
 
-        // Hardware Interrupts
-        idt[InterruptIndex::Timer.as_usize()]
+        idt[InterruptIndex::Timer.as_u8()]
             .set_handler_fn(timer_interrupt_handler);
-        idt[InterruptIndex::Keyboard.as_usize()]
+        idt[InterruptIndex::Keyboard.as_u8()]
             .set_handler_fn(keyboard_interrupt_handler);
 
         idt
     };
 }
 
-/// Loads the Interrupt Descriptor Table (IDT) into the CPU register
 pub fn init_idt() {
     IDT.load();
 }
 
-// Handler for CPU Breakpoint (INT3)
 extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
-    println!("\n[EXCEPTION: BREAKPOINT]\n{:#?}", stack_frame);
+    println!("EXCEPTION: BREAKPOINT\n{:#?}", stack_frame);
 }
 
-// Handler for Double Fault (prevents triple faults/reboots)
 extern "x86-interrupt" fn double_fault_handler(
     stack_frame: InterruptStackFrame,
     _error_code: u64,
 ) -> ! {
-    panic!("[EXCEPTION: DOUBLE FAULT]\n{:#?}", stack_frame);
+    panic!("EXCEPTION: DOUBLE FAULT\n{:#?}", stack_frame);
 }
 
-// Handler for Hardware Timer Ticks (IRQ 0)
 extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFrame) {
-    // Timer tick runs silently in the background without polluting screen output
-
-    // Signal End of Interrupt (EOI) to the PIC chip
     unsafe {
         PICS.lock()
             .notify_end_of_interrupt(InterruptIndex::Timer.as_u8());
     }
 }
 
-// Handler for Physical Keyboard Input (IRQ 1)
 extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStackFrame) {
-    use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1};
-    use x86_64::instructions::port::Port;
-
     lazy_static! {
-        static ref KEYBOARD: Mutex<Keyboard<layouts::Us104Key, ScancodeSet1>> =
-            Mutex::new(Keyboard::new(
-                ScancodeSet1::new(),
-                layouts::Us104Key,
-                HandleControl::Ignore
-            ));
+        static ref KEYBOARD: Mutex<Keyboard<layouts::Us104Key, ScancodeSet1>> = Mutex::new(
+            Keyboard::new(ScancodeSet1::new(), layouts::Us104Key, HandleControl::Ignore)
+        );
     }
 
     let mut keyboard = KEYBOARD.lock();
-    // Read key scancode from PS/2 data port 0x60
     let mut port = Port::new(0x60);
     let scancode: u8 = unsafe { port.read() };
 
+    // Use add_byte instead of add_scancode
     if let Ok(Some(key_event)) = keyboard.add_byte(scancode) {
         if let Some(key) = keyboard.process_keyevent(key_event) {
             match key {
                 DecodedKey::Unicode(character) => {
-                    // Route key character directly to the Kernel Shell
-                    SHELL.lock().handle_key(character);
+                    unsafe {
+                        SHELL.handle_key(character);
+                    }
                 }
                 DecodedKey::RawKey(_) => {}
             }
         }
     }
 
-    // Signal End of Interrupt (EOI) to the PIC chip
     unsafe {
         PICS.lock()
             .notify_end_of_interrupt(InterruptIndex::Keyboard.as_u8());
     }
 }
+
+// Global kernel shell instance for key handling
+pub static mut SHELL: crate::shell::Shell = crate::shell::Shell::new();
