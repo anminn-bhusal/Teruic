@@ -1,0 +1,7 @@
+cargo:rerun-if-changed=C:\Users\Anmin_11\Desktop\project\teruic\Teruic\Cargo.toml
+cargo:rustc-link-search=native=C:\Users\Anmin_11\Desktop\project\teruic\Teruic\target\bootimage\bootloader\x86_64-bootloader\release\build\bootloader/451991a53096859f\out
+cargo:rustc-link-lib=static=kernel_bin-teruic
+cargo:rerun-if-env-changed=KERNEL
+cargo:rerun-if-env-changed=KERNEL_MANIFEST
+cargo:rerun-if-changed=C:\Users\Anmin_11\Desktop\project\teruic\Teruic\target\x86_64-unknown-none\debug\teruic
+cargo:rerun-if-changed=build.rs

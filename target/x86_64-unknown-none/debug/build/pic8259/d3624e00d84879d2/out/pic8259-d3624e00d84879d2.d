@@ -1,0 +1,7 @@
+C:\Users\Anmin_11\Desktop\project\teruic\Teruic\target\x86_64-unknown-none\debug\build\pic8259/d3624e00d84879d2\out\pic8259-d3624e00d84879d2.d: C:\Users\Anmin_11\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pic8259-0.10.4\src\lib.rs
+
+C:\Users\Anmin_11\Desktop\project\teruic\Teruic\target\x86_64-unknown-none\debug\build\pic8259/d3624e00d84879d2\out\libpic8259-d3624e00d84879d2.rlib: C:\Users\Anmin_11\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pic8259-0.10.4\src\lib.rs
+
+C:\Users\Anmin_11\Desktop\project\teruic\Teruic\target\x86_64-unknown-none\debug\build\pic8259/d3624e00d84879d2\out\libpic8259-d3624e00d84879d2.rmeta: C:\Users\Anmin_11\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pic8259-0.10.4\src\lib.rs
+
+C:\Users\Anmin_11\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pic8259-0.10.4\src\lib.rs:
