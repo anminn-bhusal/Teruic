@@ -58,6 +58,10 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
 
     println!("Kernel Heap Allocator initialized successfully.");
 
+    // Initialize In-Memory File System
+        vfs::VFS.lock().init();
+    println!("Virtual File System (VFS) initialized.");
+
     // 3. Multitasking Executor Setup
     let mut executor = Executor::new();
     executor.spawn(Task::new(example_task()));
