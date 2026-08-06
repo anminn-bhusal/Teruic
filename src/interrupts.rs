@@ -16,6 +16,10 @@ use spin::Mutex;
 use x86_64::instructions::port::Port;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
 
+use core::sync::atomic::{AtomicU64, Ordering};
+
+
+pub static mut SHELL: crate::shell::Shell = crate::shell::Shell::new();
 pub const PIC_1_OFFSET: u8 = 32;
 pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
 
@@ -103,5 +107,25 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStac
     }
 }
 
-// Global kernel shell instance for key handling
-pub static mut SHELL: crate::shell::Shell = crate::shell::Shell::new();
+// Global tick counter updated on every timer interrupt (55ms default rate)
+static TICKS: AtomicU64 = AtomicU64::new(0);
+
+/// Returns the total hardware ticks elapsed since boot.
+pub fn ticks() -> u64 {
+    TICKS.load(Ordering::Relaxed)
+}
+
+/// Returns elapsed uptime in seconds (approx 18.2 ticks/sec on default PIT rate).
+pub fn uptime_seconds() -> u64 {
+    ticks() / 18
+}
+
+extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFrame) {
+    // Increment total system ticks safely across interrupts
+    TICKS.fetch_add(1, Ordering::Relaxed);
+
+    unsafe {
+        PICS.lock()
+            .notify_end_of_interrupt(InterruptIndex::Timer.as_u8());
+    }
+}
