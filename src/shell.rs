@@ -2,14 +2,12 @@
 // as this is kernel lvl shell so it may be temporary or not as well so idk the future.
 
 // Todo: many things i even dont know but at first creating commands for further development
-
-use alloc::string::{String, ToString};
+use alloc::string::String;
 use alloc::vec::Vec;
 use crate::{print, println};
+use crate::vfs::VFS;
 
 pub struct Shell {
-    // Both of these use the Heap! 
-    // They grow dynamically as you type or run more commands.
     buffer: String,
     history: Vec<String>,
 }
@@ -31,13 +29,11 @@ impl Shell {
                 print!("teruic> ");
             }
             '\x08' => {
-                // pop() removes the last character from the String dynamically
                 if self.buffer.pop().is_some() {
                     print!("\x08"); 
                 }
             }
             character if character.is_ascii() => {
-                // push() allocates more memory on the heap if the string gets too long!
                 self.buffer.push(character);
                 print!("{}", character);
             }
@@ -50,10 +46,8 @@ impl Shell {
             return;
         }
 
-        // 1. Save to command history (Allocates a new String on the heap)
         self.history.push(self.buffer.clone());
 
-        // 2. Split the buffer into arguments using Vec (Allocates a list on the heap)
         let args: Vec<&str> = self.buffer.trim().split_whitespace().collect();
         let cmd = args[0];
 
@@ -61,32 +55,63 @@ impl Shell {
             "help" => {
                 println!("Teruic OS Available Commands:");
                 println!("  help     - Show this menu");
-                println!("  clear    - Clear the screen buffer");
-                println!("  info     - Display kernel system info");
-                println!("  history  - Show command history");
-                println!("  echo     - Echo back text (e.g. echo hello)");
+                println!("  ls       - List files in Virtual File System");
+                println!("  cat      - Read a file (e.g. cat hello.txt)");
+                println!("  write    - Create a text file (e.g. write test.txt hello)");
+                println!("  clear    - Clear screen");
+                println!("  info     - System info");
+                println!("  uptime   - System uptime");
+                println!("  history  - Command history");
+            }
+            "ls" => {
+                let files = VFS.lock().list();
+                println!("VFS Directory Listing:");
+                for file in files {
+                    println!("  {}", file);
+                }
+            }
+            "cat" => {
+                if args.len() > 1 {
+                    let filename = args[1];
+                    match VFS.lock().read_file(filename) {
+                        Some(bytes) => {
+                            if let Ok(text) = core::str::from_utf8(&bytes) {
+                                println!("{}", text);
+                            } else {
+                                println!("[Binary Data - {} bytes]", bytes.len());
+                            }
+                        }
+                        None => println!("File not found: '{}'", filename),
+                    }
+                } else {
+                    println!("Usage: cat <filename>");
+                }
+            }
+            "write" => {
+                if args.len() > 2 {
+                    let filename = args[1];
+                    let content = args[2..].join(" ");
+                    VFS.lock().write_file(filename, content.as_bytes().to_vec());
+                    println!("Wrote to file '{}'", filename);
+                } else {
+                    println!("Usage: write <filename> <content>");
+                }
             }
             "clear" => crate::vga::clear_screen(),
             "info" => {
                 println!("Teruic Kernel v0.1.0 (x86_64 Bare-Metal)");
-                println!("Heap Allocator: ACTIVE and functioning");
-            }
-            "history" => {
-                println!("Command History:");
-                for (i, past_cmd) in self.history.iter().enumerate() {
-                    println!("  {}: {}", i + 1, past_cmd);
-                }
+                println!("Heap Allocator: ACTIVE");
+                println!("Virtual File System: ACTIVE");
             }
             "uptime" => {
                 let secs = crate::interrupts::uptime_seconds();
                 let ticks = crate::interrupts::ticks();
                 println!("System Uptime: {} seconds ({} ticks)", secs, ticks);
             }
-            "echo" => {
-                if args.len() > 1 {
-                    // Joins arguments with a space (Allocates a new String on the heap)
-                    let msg = args[1..].join(" ");
-                    println!("{}", msg);
+            "history" => {
+                println!("Command History:");
+                for (i, past_cmd) in self.history.iter().enumerate() {
+                    println!("  {}: {}", i + 1, past_cmd);
                 }
             }
             _ => println!("Unknown command: '{}'. Type 'help' for available commands.", cmd),
