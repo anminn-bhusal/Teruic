@@ -77,6 +77,11 @@ impl Shell {
                     println!("  {}: {}", i + 1, past_cmd);
                 }
             }
+            "uptime" => {
+                let secs = crate::interrupts::uptime_seconds();
+                let ticks = crate::interrupts::ticks();
+                println!("System Uptime: {} seconds ({} ticks)", secs, ticks);
+            }
             "echo" => {
                 if args.len() > 1 {
                     // Joins arguments with a space (Allocates a new String on the heap)
