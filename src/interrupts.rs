@@ -7,8 +7,11 @@
 
 
 // also now we added PIC 8259 for testing with interrupt
+
 extern crate alloc;
+
 use crate::println;
+use core::sync::atomic::{AtomicU64, Ordering};
 use lazy_static::lazy_static;
 use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1};
 use pic8259::ChainedPics;
@@ -16,15 +19,24 @@ use spin::Mutex;
 use x86_64::instructions::port::Port;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
 
-use core::sync::atomic::{AtomicU64, Ordering};
-
-
-pub static mut SHELL: crate::shell::Shell = crate::shell::Shell::new();
 pub const PIC_1_OFFSET: u8 = 32;
 pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
 
 pub static PICS: Mutex<ChainedPics> =
     Mutex::new(unsafe { ChainedPics::new(PIC_1_OFFSET, PIC_2_OFFSET) });
+
+// Global tick counter updated on every timer interrupt
+static TICKS: AtomicU64 = AtomicU64::new(0);
+
+/// Returns total hardware ticks elapsed since boot.
+pub fn ticks() -> u64 {
+    TICKS.load(Ordering::Relaxed)
+}
+
+/// Returns elapsed uptime in seconds (approx 18.2 ticks/sec on default PIT rate).
+pub fn uptime_seconds() -> u64 {
+    ticks() / 18
+}
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
@@ -70,6 +82,9 @@ extern "x86-interrupt" fn double_fault_handler(
 }
 
 extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFrame) {
+    // Increment total hardware ticks
+    TICKS.fetch_add(1, Ordering::Relaxed);
+
     unsafe {
         PICS.lock()
             .notify_end_of_interrupt(InterruptIndex::Timer.as_u8());
@@ -87,7 +102,6 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStac
     let mut port = Port::new(0x60);
     let scancode: u8 = unsafe { port.read() };
 
-    // Use add_byte instead of add_scancode
     if let Ok(Some(key_event)) = keyboard.add_byte(scancode) {
         if let Some(key) = keyboard.process_keyevent(key_event) {
             match key {
@@ -107,25 +121,5 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStac
     }
 }
 
-// Global tick counter updated on every timer interrupt (55ms default rate)
-static TICKS: AtomicU64 = AtomicU64::new(0);
-
-/// Returns the total hardware ticks elapsed since boot.
-pub fn ticks() -> u64 {
-    TICKS.load(Ordering::Relaxed)
-}
-
-/// Returns elapsed uptime in seconds (approx 18.2 ticks/sec on default PIT rate).
-pub fn uptime_seconds() -> u64 {
-    ticks() / 18
-}
-
-extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFrame) {
-    // Increment total system ticks safely across interrupts
-    TICKS.fetch_add(1, Ordering::Relaxed);
-
-    unsafe {
-        PICS.lock()
-            .notify_end_of_interrupt(InterruptIndex::Timer.as_u8());
-    }
-}
+// Global kernel shell instance for key handling
+pub static mut SHELL: crate::shell::Shell = crate::shell::Shell::new();
