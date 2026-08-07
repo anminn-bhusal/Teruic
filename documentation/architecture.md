@@ -3,7 +3,9 @@
 Teruic OS is a bare-metal, 64-bit (x86_64-unknown-none) operating system which has been written in Rust (using the flags !#![no_std] and !#![no_main]).
 
 ## 1. Subsystem Layout
-![System architecture](Images/architecture.jpg)
+![System architecture](../Images/architecture.jpg)
+
+I know i used gemini for generating image but it is same as what the actual architecture is as so for now i will keep this later i will update the image.
 
 ## 2. Kernel Initialization Sequence (src/main.rs)
 
