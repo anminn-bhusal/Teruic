@@ -1,5 +1,6 @@
 // visual file system
 
+
 use alloc::collections::BTreeMap;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
@@ -26,26 +27,27 @@ impl VFSManager {
         }
     }
 
-    /// Pre-loads essential directories and welcome files into the VFS
+    /// Pre-loads essential directories, scripts, and sample programs into the VFS
     pub fn init(&mut self) {
-    let bin = BTreeMap::new();
-    let apps = BTreeMap::new();
+        let bin = BTreeMap::new();
+        let apps = BTreeMap::new();
 
-    self.root.insert(
-        "hello.txt".to_string(),
-        Node::File(b"Welcome to Teruic OS File System!".to_vec()),
-    );
+        self.root.insert(
+            "hello.txt".to_string(),
+            Node::File(b"Welcome to Teruic OS File System!".to_vec()),
+        );
 
-    // Create a sample shell script in the VFS
-    let sample_script = b"# Teruic OS Automation Script\ninfo\nuptime\nwrite boot.log System automated boot test\ncat boot.log\n";
-    self.root.insert(
-        "demo.sh".to_string(),
-        Node::File(sample_script.to_vec()),
-    );
+        // Pre-load Sample Java Program
+        let java_sample = b"// Teruic OS Java Application\nSystem.out.println \"Hello from Java running on Teruic OS!\"\nbipush 15\nbipush 27\niadd\nistore 0\niload 0\nprintln\nreturn\n";
+        self.root.insert("Main.java".to_string(), Node::File(java_sample.to_vec()));
 
-    self.root.insert("bin".to_string(), Node::Directory(bin));
-    self.root.insert("apps".to_string(), Node::Directory(apps));
-}
+        // Pre-load Sample Shell Script
+        let sample_script = b"# Teruic OS Automation Script\ninfo\nuptime\n";
+        self.root.insert("demo.sh".to_string(), Node::File(sample_script.to_vec()));
+
+        self.root.insert("bin".to_string(), Node::Directory(bin));
+        self.root.insert("apps".to_string(), Node::Directory(apps));
+    }
 
     /// List all root files and directories
     pub fn list(&self) -> Vec<String> {
@@ -57,7 +59,7 @@ impl VFSManager {
         self.root.insert(name.to_string(), Node::File(contents));
     }
 
-    /// Read file content as bytes
+    /// Read file content as a heap-allocated byte vector (Vec<u8>)
     pub fn read_file(&self, name: &str) -> Option<Vec<u8>> {
         match self.root.get(name) {
             Some(Node::File(data)) => Some(data.clone()),

@@ -20,6 +20,7 @@ mod shell;
 mod task;
 mod vfs;
 mod vga;
+mod java;
 
 use bootloader::{entry_point, BootInfo};
 use core::panic::PanicInfo;

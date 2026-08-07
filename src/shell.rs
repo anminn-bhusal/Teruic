@@ -65,6 +65,7 @@ impl Shell {
                 println!("  clear          - Clear terminal screen");
                 println!("  info           - System hardware & kernel info");
                 println!("  uptime         - System uptime in seconds");
+                println!("  java <file>    - Run Java bytecode/program using Embedded JVM");
             }
             "edit" => {
                 if args.len() > 1 {
@@ -76,6 +77,14 @@ impl Shell {
                 println!("Usage: edit <filename>");
             }
             }
+            "java" => {
+            if args.len() > 1 {
+            let filename = args[1];
+            crate::java::JVM::execute_file(filename);
+            } else {
+                println!("Usage: java <filename>");
+        }
+        }
             "ls" => {
                 let files = VFS.lock().list();
                 println!("VFS Directory Listing:");
