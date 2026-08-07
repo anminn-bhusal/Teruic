@@ -8,6 +8,7 @@
 
 extern crate alloc;
 
+mod editor;
 mod allocator;
 mod c_abi;
 mod gui;

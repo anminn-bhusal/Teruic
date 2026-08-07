@@ -66,6 +66,16 @@ impl Shell {
                 println!("  info           - System hardware & kernel info");
                 println!("  uptime         - System uptime in seconds");
             }
+            "edit" => {
+                if args.len() > 1 {
+                let filename = args[1];
+                unsafe {
+                    crate::editor::EDITOR.open(filename);
+                }
+            } else {
+                println!("Usage: edit <filename>");
+            }
+            }
             "ls" => {
                 let files = VFS.lock().list();
                 println!("VFS Directory Listing:");
