@@ -2,7 +2,7 @@
 
 Teruic OS is a 64-bit (`x86_64`) bare-metal operating system written in Rust (`#![no_std]`) and designed specifically for privacy, cybersecurity analysis, developer tools, and computer science education.
 
-
+![First screenshot](Images/teruicfirstpic.png)
 
 
 ## Features
