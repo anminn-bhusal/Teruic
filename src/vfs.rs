@@ -1,8 +1,8 @@
 // virtual file system
 
-
 use alloc::collections::BTreeMap;
 use alloc::string::{String, ToString};
+use alloc::vec;
 use alloc::vec::Vec;
 use spin::Mutex;
 
@@ -37,13 +37,13 @@ impl VFSManager {
             Node::File(b"Welcome to Teruic OS File System!".to_vec()),
         );
 
-        // Pre-load Sample C Program
-        let c_sample = b"#include <stdio.h>\n\nint main() {\n    printf(\"Hello from C code running on Teruic OS!\\n\");\n    int result = 42;\n    printf(\"Result code: %d\\n\", result);\n    return 0;\n}\n";
-        self.root.insert("main.c".to_string(), Node::File(c_sample.to_vec()));
+        // Raw x86_64 Assembly Native Binary (xor rax, rax; ret)
+        let native_asm_bin: Vec<u8> = vec![0x48, 0x31, 0xC0, 0xC3];
+        self.root.insert("asm_app.bin".to_string(), Node::File(native_asm_bin));
 
-        // Pre-load Sample Java Program
-        let java_sample = b"// Teruic OS Java Application\nSystem.out.println \"Hello from Java running on Teruic OS!\"\nbipush 15\nbipush 27\niadd\nistore 0\niload 0\nprintln\nreturn\n";
-        self.root.insert("Main.java".to_string(), Node::File(java_sample.to_vec()));
+        // Pre-load Sample C Program
+        let c_sample = b"#include <stdio.h>\n\nint main() {\n    printf(\"Hello Native C!\\n\");\n    return 0;\n}\n";
+        self.root.insert("main.c".to_string(), Node::File(c_sample.to_vec()));
 
         // Pre-load Sample Shell Script
         let sample_script = b"# Teruic OS Automation Script\ninfo\nuptime\n";
@@ -71,13 +71,8 @@ impl VFSManager {
         }
     }
 
-    /// Delete a file from the virtual file system
+    /// Remove a file from the VFS root
     pub fn remove_file(&mut self, name: &str) -> bool {
-        if let Some(Node::File(_)) = self.root.get(name) {
-            self.root.remove(name);
-            true
-        } else {
-            false
-        }
+        self.root.remove(name).is_some()
     }
 }

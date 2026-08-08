@@ -14,6 +14,7 @@ mod c_abi;
 mod gui;
 mod interrupts;
 mod memory;
+mod loader;
 mod print;
 mod serial;
 mod shell;
@@ -58,6 +59,10 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
 
     // 3. Initialize VFS
     vfs::VFS.lock().init();
+
+    // Pre-load a valid x86_64 binary into VFS for testing (after Heap and VFS init)
+    let test_bin: &[u8] = &[0x90, 0x90, 0xC3]; // NOP, NOP, RET
+    crate::vfs::VFS.lock().write_file("test.bin", test_bin.to_vec());
 
     // 4. Render GUI Status Bar at Top Row
     gui::UI::draw_header("Bare-Metal Core Active");

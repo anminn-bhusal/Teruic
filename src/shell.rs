@@ -1,32 +1,22 @@
 // For now this is just in testing phase for shell
 // as this is kernel lvl shell so it may be temporary or not as well so idk the future.
 
-// Todo: many things i even dont know but at first creating commands for further development
-
-
 use alloc::string::String;
 use alloc::vec::Vec;
+use crate::c_runner::CRunner;
 use crate::{print, println};
 use crate::vfs::VFS;
-use crate::gui::UI;
 use x86_64::instructions::port::Port;
+use spin::Mutex;
 
+pub static SHELL: Mutex<Shell> = Mutex::new(Shell::new());
 
-/// Initiates an x86 ACPI/QEMU soft shutdown
 pub fn shutdown_system() -> ! {
     crate::println!("\n[Teruic OS] Shutting down kernel...");
-    
-    // Send QEMU ACPI shutdown signal
     unsafe {
         let mut port = Port::new(0x604);
         port.write(0x2000u16);
-        
-        // Secondary fallback port for BOCHS/QEMU
-        let mut fallback_port = Port::new(0xB004);
-        fallback_port.write(0x2000u16);
     }
-
-    // Halt loop if power off is delayed
     loop {
         x86_64::instructions::hlt();
     }
@@ -47,18 +37,18 @@ impl Shell {
     
     pub fn handle_key(&mut self, c: char) {
         match c {
-            '\n' => {
+            '\n' | '\r' => {
                 println!();
                 self.execute_command();
                 self.buffer.clear();
                 print!("teruic> ");
             }
-            '\x08' => {
+            '\x08' | '\x7f' => {
                 if self.buffer.pop().is_some() {
-                    print!("\x08"); 
+                    print!("\x08 \x08"); 
                 }
             }
-            character if character.is_ascii() => {
+            character if character >= ' ' && character <= '~' => {
                 self.buffer.push(character);
                 print!("{}", character);
             }
@@ -66,11 +56,10 @@ impl Shell {
         }
     }
     
-    /// Execute a single string command line
     pub fn run_line(&mut self, line: &str) {
         let trimmed = line.trim();
         if trimmed.is_empty() || trimmed.starts_with('#') {
-            return; // Ignore empty lines and script comments
+            return;
         }
 
         let args: Vec<&str> = trimmed.split_whitespace().collect();
@@ -81,45 +70,55 @@ impl Shell {
                 println!("Teruic OS Shell Commands:");
                 println!("  ls             - List files in Virtual File System");
                 println!("  cat <file>     - Display contents of a file");
-                println!("  write <file>   - Create a file (e.g. write script.sh echo hello)");
-                println!("  exec <file>    - Execute a shell script or program file");
-                println!("  c_app          - Run sample C application window");
+                println!("  write <file>   - Create a file");
+                println!("  edit <file>    - Open file in TeruicPad full-screen editor");
+                println!("  c_run <file>   - Execute a C program file");
                 println!("  clear          - Clear terminal screen");
                 println!("  info           - System hardware & kernel info");
                 println!("  uptime         - System uptime in seconds");
-                println!("  java <file>    - Run Java bytecode/program using Embedded JVM");
-                println!("  c_run <file>   - Run C source code program using C Runtime");
                 println!("  shutdown       - Power off the system safely");
-            }
-            "c_run" => {
-                if args.len() > 1 {
-                    let filename = args[1];
-                    crate::c_runner::CRunner::execute_file(filename);
-                } else {
-                    println!("Usage: c_run <filename>");
-                }
+                println!("  runbin <file>  - Execute native x86_64 assembly/C machine code binary");
             }
             "shutdown" => {
                 shutdown_system();
             }
             "edit" => {
                 if args.len() > 1 {
-                let filename = args[1];
-                unsafe {
-                    crate::editor::EDITOR.open(filename);
+                    let filename = args[1];
+                    crate::editor::EDITOR.lock().open(filename);
+                } else {
+                    println!("Usage: edit <filename>");
                 }
-            } else {
-                println!("Usage: edit <filename>");
             }
-            }
-            "java" => {
-            if args.len() > 1 {
-            let filename = args[1];
-            crate::java::JVM::execute_file(filename);
+            "hexwrite" => {
+    if args.len() > 2 {
+        let filename = args[1];
+        let mut bytes = Vec::new();
+
+        for hex_str in &args[2..] {
+            if let Ok(byte) = u8::from_str_radix(hex_str, 16) {
+                bytes.push(byte);
             } else {
-                println!("Usage: java <filename>");
+                println!("Invalid hex byte: '{}'", hex_str);
+                return;
+            }
         }
-        }
+
+        VFS.lock().write_file(filename, bytes);
+        println!("Successfully wrote {} bytes to '{}'", args.len() - 2, filename);
+    } else {
+        println!("Usage: hexwrite <filename> <hex_bytes...>");
+        println!("Example: hexwrite test.bin 90 90 c3");
+    }
+}
+            "c_run" => {
+                if args.len() > 1 {
+                    let filename = args[1];
+                    CRunner::execute_file(filename);
+                } else {
+                    println!("Usage: c_run <filename>");
+                }
+            }
             "ls" => {
                 let files = VFS.lock().list();
                 println!("VFS Directory Listing:");
@@ -154,55 +153,24 @@ impl Shell {
                     println!("Usage: write <filename> <content>");
                 }
             }
-            "exec" => {
-                if args.len() > 1 {
-                    let filename = args[1];
-                    self.execute_script(filename);
-                } else {
-                    println!("Usage: exec <script_filename>");
-                }
-            }
-            "c_app" => {
-                UI::draw_window("C Application Bridge", &[
-                    "Running native C binary through FFI...",
-                    "Accessing VFS and VGA buffers directly.",
-                    "Status: Execution Completed Successfully."
-                ]);
-            }
             "clear" => crate::vga::clear_screen(),
             "info" => {
                 println!("Teruic Kernel v0.1.0 (x86_64 Bare-Metal)");
-                println!("Shell Interpreter Engine: ACTIVE");
-                println!("C FFI & GUI System: ACTIVE");
+                println!("C Runtime & Shell: ACTIVE");
+            }
+            "runbin" => {
+                if args.len() > 1 {
+                    let filename = args[1];
+                    crate::loader::NativeLoader::execute_binary(filename);
+                } else {
+                    println!("Usage: runbin <binary_filename>");
+                }
             }
             "uptime" => {
                 let secs = crate::interrupts::uptime_seconds();
-                let ticks = crate::interrupts::ticks();
-                println!("System Uptime: {} seconds ({} ticks)", secs, ticks);
+                println!("System Uptime: {} seconds", secs);
             }
             _ => println!("Unknown command: '{}'. Type 'help' for commands.", cmd),
-        }
-    }
-
-    /// Read a script file from VFS and execute line by line
-    fn execute_script(&mut self, filename: &str) {
-        match VFS.lock().read_file(filename) {
-            Some(bytes) => {
-                if let Ok(script_content) = core::str::from_utf8(&bytes) {
-                    println!("[Exec] Running script '{}'...", filename);
-                    for line in script_content.lines() {
-                        let trimmed = line.trim();
-                        if !trimmed.is_empty() && !trimmed.starts_with('#') {
-                            println!(">> {}", trimmed);
-                            self.run_line(trimmed);
-                        }
-                    }
-                    println!("[Exec] Script execution finished.");
-                } else {
-                    println!("[Exec Error] Cannot execute binary or non-UTF8 file.");
-                }
-            }
-            None => println!("[Exec Error] Script file '{}' not found in VFS.", filename),
         }
     }
 

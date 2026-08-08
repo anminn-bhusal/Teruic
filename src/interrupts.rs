@@ -1,10 +1,9 @@
 // When the CPU encounters an error (like dividing by zero or accessing invalid memory),
-//  or when hardware signals an event (like a keypress), it pauses execution 
+// or when hardware signals an event (like a keypress), it pauses execution 
 // and looks up a handler function in a 
 // central table called the Interrupt Descriptor Table (IDT). 
 
 // so we are creating this file for interrupt handling
-
 
 // also now we added PIC 8259 for testing with interrupt
 
@@ -90,6 +89,7 @@ extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFr
             .notify_end_of_interrupt(InterruptIndex::Timer.as_u8());
     }
 }
+
 extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStackFrame) {
     lazy_static! {
         static ref KEYBOARD: Mutex<Keyboard<layouts::Us104Key, ScancodeSet1>> = Mutex::new(
@@ -104,24 +104,26 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStac
     if let Ok(Some(key_event)) = keyboard.add_byte(scancode) {
         if let Some(key) = keyboard.process_keyevent(key_event) {
             match key {
-                DecodedKey::Unicode(character) => unsafe {
-                    if crate::editor::EDITOR.active {
-                        crate::editor::EDITOR.handle_key(character);
+                DecodedKey::Unicode(character) => {
+                    // Character input routing inside keyboard interrupt handler
+                    if crate::editor::EDITOR.lock().active {
+                        crate::editor::EDITOR.lock().handle_key(character);
                     } else {
-                        SHELL.handle_key(character);
+                        crate::shell::SHELL.lock().handle_key(character);
                     }
-                },
-                DecodedKey::RawKey(raw_key) => unsafe {
-                    if crate::editor::EDITOR.active {
+                }
+                DecodedKey::RawKey(raw_key) => {
+                    // Arrow key handling inside interrupts.rs
+                    if crate::editor::EDITOR.lock().active {
                         match raw_key {
-                            KeyCode::ArrowLeft => crate::editor::EDITOR.handle_key('\x11'),
-                            KeyCode::ArrowRight => crate::editor::EDITOR.handle_key('\x12'),
-                            KeyCode::ArrowUp => crate::editor::EDITOR.handle_key('\x14'),
-                            KeyCode::ArrowDown => crate::editor::EDITOR.handle_key('\x15'),
+                            KeyCode::ArrowLeft => crate::editor::EDITOR.lock().handle_key('\x11'),
+                            KeyCode::ArrowRight => crate::editor::EDITOR.lock().handle_key('\x12'),
+                            KeyCode::ArrowUp => crate::editor::EDITOR.lock().handle_key('\x14'),
+                            KeyCode::ArrowDown => crate::editor::EDITOR.lock().handle_key('\x15'),
                             _ => {}
                         }
                     }
-                },
+                }
             }
         }
     }
@@ -131,6 +133,3 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStac
             .notify_end_of_interrupt(InterruptIndex::Keyboard.as_u8());
     }
 }
-
-// Global kernel shell instance for key handling
-pub static mut SHELL: crate::shell::Shell = crate::shell::Shell::new();
