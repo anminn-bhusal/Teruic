@@ -27,10 +27,6 @@ Rust Nightly (`rustup toolchain install nightly`)
 ### Building and Running
 
 ```bash
-# Clone the repository
-git clone [https://github.com/your-username/teruic-os.git](https://github.com/your-username/teruic-os.git)
-cd teruic-os
-
 # Build the bootable image
 cargo bootimage
 
