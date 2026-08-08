@@ -17,6 +17,7 @@ mod memory;
 mod print;
 mod serial;
 mod shell;
+mod c_runner;
 mod task;
 mod vfs;
 mod vga;

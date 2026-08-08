@@ -9,6 +9,28 @@ use alloc::vec::Vec;
 use crate::{print, println};
 use crate::vfs::VFS;
 use crate::gui::UI;
+use x86_64::instructions::port::Port;
+
+
+/// Initiates an x86 ACPI/QEMU soft shutdown
+pub fn shutdown_system() -> ! {
+    crate::println!("\n[Teruic OS] Shutting down kernel...");
+    
+    // Send QEMU ACPI shutdown signal
+    unsafe {
+        let mut port = Port::new(0x604);
+        port.write(0x2000u16);
+        
+        // Secondary fallback port for BOCHS/QEMU
+        let mut fallback_port = Port::new(0xB004);
+        fallback_port.write(0x2000u16);
+    }
+
+    // Halt loop if power off is delayed
+    loop {
+        x86_64::instructions::hlt();
+    }
+}
 
 pub struct Shell {
     buffer: String,
@@ -22,7 +44,7 @@ impl Shell {
             history: Vec::new(),
         }
     }
-
+    
     pub fn handle_key(&mut self, c: char) {
         match c {
             '\n' => {
@@ -43,7 +65,7 @@ impl Shell {
             _ => {} 
         }
     }
-
+    
     /// Execute a single string command line
     pub fn run_line(&mut self, line: &str) {
         let trimmed = line.trim();
@@ -66,6 +88,19 @@ impl Shell {
                 println!("  info           - System hardware & kernel info");
                 println!("  uptime         - System uptime in seconds");
                 println!("  java <file>    - Run Java bytecode/program using Embedded JVM");
+                println!("  c_run <file>   - Run C source code program using C Runtime");
+                println!("  shutdown       - Power off the system safely");
+            }
+            "c_run" => {
+                if args.len() > 1 {
+                    let filename = args[1];
+                    crate::c_runner::CRunner::execute_file(filename);
+                } else {
+                    println!("Usage: c_run <filename>");
+                }
+            }
+            "shutdown" => {
+                shutdown_system();
             }
             "edit" => {
                 if args.len() > 1 {
