@@ -13,7 +13,7 @@ extern crate alloc;
 use crate::println;
 use core::sync::atomic::{AtomicU64, Ordering};
 use lazy_static::lazy_static;
-use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1};
+use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1, KeyCode};
 use pic8259::ChainedPics;
 use spin::Mutex;
 use x86_64::instructions::port::Port;
@@ -111,7 +111,17 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStac
                         SHELL.handle_key(character);
                     }
                 },
-                DecodedKey::RawKey(_) => {}
+                DecodedKey::RawKey(raw_key) => unsafe {
+                    if crate::editor::EDITOR.active {
+                        match raw_key {
+                            KeyCode::ArrowLeft => crate::editor::EDITOR.handle_key('\x11'),
+                            KeyCode::ArrowRight => crate::editor::EDITOR.handle_key('\x12'),
+                            KeyCode::ArrowUp => crate::editor::EDITOR.handle_key('\x14'),
+                            KeyCode::ArrowDown => crate::editor::EDITOR.handle_key('\x15'),
+                            _ => {}
+                        }
+                    }
+                },
             }
         }
     }

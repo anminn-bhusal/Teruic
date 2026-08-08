@@ -9,7 +9,6 @@ use crate::gui::UI;
 pub struct CRunner;
 
 impl CRunner {
-    /// Read a .c file from VFS and execute it inside the C Runtime Environment
     pub fn execute_file(filename: &str) {
         match VFS.lock().read_file(filename) {
             Some(bytes) => {
@@ -27,64 +26,110 @@ impl CRunner {
         }
     }
 
-    /// Parse and execute simple C statements line by line
     fn interpret(source: &str) {
         let mut variables: Vec<(String, i32)> = Vec::new();
 
         for line in source.lines() {
             let trimmed = line.trim();
 
-            // Skip empty lines, preprocessor directives, and comments
             if trimmed.is_empty() 
                 || trimmed.starts_with("#include") 
                 || trimmed.starts_with("//") 
                 || trimmed.starts_with("int main") 
+                || trimmed.starts_with("void main")
                 || trimmed == "{" 
                 || trimmed == "}" 
             {
                 continue;
             }
 
-            // Parse printf(...)
+            // Parse printf statements
             if trimmed.starts_with("printf(") {
                 if let Some(start) = trimmed.find('(') {
                     if let Some(end) = trimmed.rfind(')') {
                         let content = &trimmed[start + 1..end];
-                        let clean_str = content.trim().trim_matches('"');
-                        
-                        // Handle formatting simple %d variables
-                        if clean_str.contains("%d") {
-                            let parts: Vec<&str> = content.split(',').collect();
-                            if parts.len() > 1 {
-                                let var_name = parts[1].trim();
-                                let mut val = 0;
+                        let parts: Vec<&str> = content.splitn(2, ',').collect();
+                        let clean_str = parts[0].trim().trim_matches('"');
+
+                        if parts.len() > 1 && clean_str.contains("%d") {
+                            let var_expr = parts[1].trim().trim_end_matches(';');
+                            let mut val = 0;
+                            
+                            // Check if it's a literal or variable name
+                            if let Ok(lit) = var_expr.parse::<i32>() {
+                                val = lit;
+                            } else {
                                 for (name, v) in &variables {
-                                    if name == var_name {
+                                    if name == var_expr {
                                         val = *v;
                                         break;
                                     }
                                 }
-                                let fmt_out = clean_str.replace("%d", &format!("{}", val));
-                                crate::println!("[C stdout] {}", fmt_out);
                             }
+                            let fmt_out = clean_str.replace("%d", &format!("{}", val));
+                            crate::println!("{}", fmt_out);
                         } else {
-                            crate::println!("[C stdout] {}", clean_str);
+                            crate::println!("{}", clean_str);
                         }
                     }
                 }
             }
-            // Parse int variable declaration (e.g. int x = 10;)
+            // Parse variable declarations (e.g., int x = 10; or int x = y + 5;)
             else if trimmed.starts_with("int ") {
-                let stmt = trimmed.trim_end_matches(';');
-                let parts: Vec<&str> = stmt.split_whitespace().collect();
-                if parts.len() >= 4 && parts[2] == "=" {
-                    let var_name = String::from(parts[1]);
-                    if let Ok(val) = parts[3].parse::<i32>() {
-                        variables.push((var_name, val));
+                let stmt = trimmed.trim_end_matches(';').trim();
+                let parts: Vec<&str> = stmt.split('=').map(|s| s.trim()).collect();
+                if parts.len() == 2 {
+                    let declaration_parts: Vec<&str> = parts[0].split_whitespace().collect();
+                    if declaration_parts.len() >= 2 {
+                        let var_name = String::from(declaration_parts[1]);
+                        let rhs = parts[1];
+
+                        // Evaluate RHS value
+                        let mut val = 0;
+                        if let Ok(parsed_val) = rhs.parse::<i32>() {
+                            val = parsed_val;
+                        } else {
+                            // Simple variable lookup fallback
+                            for (name, v) in &variables {
+                                if name == rhs {
+                                    val = *v;
+                                    break;
+                                }
+                            }
+                        }
+
+                        // Update or push variable
+                        if let Some(existing) = variables.iter_mut().find(|(n, _)| *n == var_name) {
+                            existing.1 = val;
+                        } else {
+                            variables.push((var_name, val));
+                        }
                     }
                 }
             }
-            // Parse return 0;
+            // Variable reassignment (e.g., x = 20;)
+            else if trimmed.contains('=') && !trimmed.starts_with("==") {
+                let stmt = trimmed.trim_end_matches(';').trim();
+                let parts: Vec<&str> = stmt.split('=').map(|s| s.trim()).collect();
+                if parts.len() == 2 {
+                    let var_name = parts[0];
+                    let rhs = parts[1];
+                    let mut val = 0;
+                    if let Ok(parsed_val) = rhs.parse::<i32>() {
+                        val = parsed_val;
+                    } else {
+                        for (name, v) in &variables {
+                            if name == rhs {
+                                val = *v;
+                                break;
+                            }
+                        }
+                    }
+                    if let Some(existing) = variables.iter_mut().find(|(n, _)| n == var_name) {
+                        existing.1 = val;
+                    }
+                }
+            }
             else if trimmed.starts_with("return") {
                 break;
             }
